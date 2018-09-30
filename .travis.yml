@@ -1,38 +1,20 @@
 language: rust
-
-matrix:
-  include:
-    - env: TARGET=x86_64-unknown-linux-gnu
-
-    - env: TARGET=thumbv6m-none-eabi
-      rust: beta
-
-    - env: TARGET=thumbv7m-none-eabi
-      rust: beta
-
-before_install:
-  - set -e
-  - rustup self update
+rust:
+  - stable
+  - beta
+  - nightly
 
 install:
-  - bash ci/install.sh
+  - rustup target add thumbv7em-none-eabi
 
 script:
-  - bash ci/script.sh
-
-after_script: set +e
+  - cargo build --verbose
 
 cache: cargo
-
 before_cache:
-  # Travis can't cache files that are not readable by "others"
   - chmod -R a+r $HOME/.cargo
 
 branches:
   only:
-    - trying
-    - staging
-
-notifications:
-  email:
-    on_success: never
+    - develop
+    - master
