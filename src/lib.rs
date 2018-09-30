@@ -7,6 +7,7 @@
 
 #![deny(missing_docs)]
 #![deny(warnings)]
+#![allow(unused)]
 #![no_std]
 
 extern crate cast;
@@ -38,21 +39,18 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
         write!(l, "let's write\r\n");
         // configure the accelerometer to operate at 400 Hz
-        lsm303c.write_accel_register(accel::Register::CTRL1, 0b0111_0_111)?;
+        lsm303c.write_accel_register_with_mask(accel::Register::CTRL1,
+                                               AccelOdr::default())?;
         write!(l, "freq done\r\n");
 
         // configure the magnetometer to operate in continuous mode
-        let mag_mode = MagMode::CONTINUOUS as u8;
-        lsm303c.modify_mag_register(mag::Register::CTRL3, |r| {
-                   (r & !(MagMode::POWER_DOWN_2 as u8)) | mag_mode
-               })?;
+        lsm303c.write_mag_register_with_mask(mag::Register::CTRL3,
+                                             MagMode::default())?;
         write!(l, "cont mode done\r\n");
 
         // enable the temperature sensor
-        let temp_control = TemperatureControl::ENABLE as u8;
-        lsm303c.modify_mag_register(mag::Register::CTRL1, |r| {
-                   (r & !(TemperatureControl::DISABLE as u8)) | temp_control
-               })?;
+        lsm303c.write_mag_register_with_mask(mag::Register::CTRL1,
+                                             TemperatureControl::default())?;
         write!(l, "enable temp done\r\n");
 
         Ok(lsm303c)
@@ -70,9 +68,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
     /// Sets the accelerometer output data rate
     pub fn accel_odr(&mut self, odr: AccelOdr) -> Result<(), E> {
-        self.modify_accel_register(accel::Register::CTRL1, |r| {
-                r & !(0b1111 << 4) | ((odr as u8) << 4)
-            })
+        self.write_accel_register_with_mask(accel::Register::CTRL1, odr)
     }
 
     /// Magnetometer measurements
@@ -87,10 +83,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
     /// Sets the magnetometer output data rate
     pub fn mag_odr(&mut self, odr: MagOdr) -> Result<(), E> {
-        let mask = MagOdr::mask();
-        self.modify_mag_register(mag::Register::CTRL1, |r| {
-                r & !mask | (odr as u8)
-            })
+        self.write_mag_register_with_mask(mag::Register::CTRL1, odr)
     }
 
     /// Temperature sensor measurement
@@ -104,13 +97,11 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(((u16(temp_out_l) + (u16(temp_out_h) << 8)) as i16) >> 4)
     }
 
-    /// Changes the `sensitivity` of the accelerometer
-    pub fn set_accel_sensitivity(&mut self,
-                                 sensitivity: Sensitivity)
-                                 -> Result<(), E> {
-        self.modify_accel_register(accel::Register::CTRL4, |r| {
-                r & !(0b11 << 4) | (sensitivity.value() << 4)
-            })
+    /// Sets accelerometer full scalue
+    pub fn set_accel_scale(&mut self,
+                           accel_scale: AccelScale)
+                           -> Result<(), E> {
+        self.write_accel_register_with_mask(accel::Register::CTRL4, accel_scale)
     }
 
     fn modify_accel_register<F>(&mut self,
@@ -122,6 +113,24 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         let r = self.read_accel_register(reg)?;
         self.write_accel_register(reg, f(r))?;
         Ok(())
+    }
+
+    fn write_accel_register_with_mask<RB>(&mut self,
+                                          reg: accel::Register,
+                                          v: RB)
+                                          -> Result<(), E>
+        where RB: RegisterBits
+    {
+        self.modify_accel_register(reg, |r| (r & RB::mask()) | v.value())
+    }
+
+    fn write_mag_register_with_mask<RB>(&mut self,
+                                        reg: mag::Register,
+                                        v: RB)
+                                        -> Result<(), E>
+        where RB: RegisterBits
+    {
+        self.modify_mag_register(reg, |r| (r & RB::mask()) | v.value())
     }
 
     fn modify_mag_register<F>(&mut self,
@@ -205,83 +214,191 @@ pub struct I16x3 {
     pub z: i16,
 }
 
-/// Accelerometer Output Data Rate
-pub enum AccelOdr {
-    /// 1 Hz
-    Hz1 = 0b0001,
-    /// 10 Hz
-    Hz10 = 0b0010,
-    /// 25 Hz
-    Hz25 = 0b0011,
-    /// 50 Hz
-    Hz50 = 0b0100,
-    /// 100 Hz
-    Hz100 = 0b0101,
-    /// 200 Hz
-    Hz200 = 0b0110,
-    /// 400 Hz
-    Hz400 = 0b0111,
+trait RegisterBits {
+    fn mask() -> u8;
+    fn value(&self) -> u8;
 }
 
+/// Accelerometer Output Data Rate
+#[derive(Copy, Clone)]
 #[allow(non_camel_case_types)]
-/// Magnetometer Output Data Rate
-pub enum MagOdr {
-    /// 0.625Hz
-    Hz_0_625 = 0x00,
-    /// 1.25Hz
-    Hz_1_25 = 0x04,
-    /// 2.5Hz
-    Hz_2_5 = 0x08,
-    /// 5Hz
-    Hz_5 = 0x0C,
-    /// 10Hz
-    Hz_10 = 0x10,
-    /// 20Hz
-    Hz_20 = 0x14,
-    /// 40Hz
-    Hz_40 = 0x18,
-    /// 80Hz
-    Hz_80 = 0x1C,
+pub enum AccelOdr {
+    /// 10 Hz
+    _10_Hz = 0x10,
+    /// 50 Hz
+    _50_Hz = 0x20,
+    /// 100 Hz
+    _100_Hz = 0x30,
+    /// 200 Hz
+    _200_Hz = 0x40,
+    /// 400 Hz
+    _400_Hz = 0x50,
+    /// 800 Hz
+    _800_Hz = 0x60,
 }
-impl MagOdr {
-    fn mask() -> u8 {
-        MagOdr::Hz_80 as u8
+
+impl Default for AccelOdr {
+    fn default() -> Self {
+        AccelOdr::_100_Hz
     }
 }
 
-/// Acceleration sensitivity
-#[derive(Clone, Copy)]
-pub enum Sensitivity {
-    /// Range: [-2g, +2g]. Sensitivity ~ 1 g / (1 << 14) LSB
-    G1,
-    /// Range: [-4g, +4g]. Sensitivity ~ 2 g / (1 << 14) LSB
-    G2,
-    /// Range: [-8g, +8g]. Sensitivity ~ 4 g / (1 << 14) LSB
-    G4,
-    /// Range: [-16g, +16g]. Sensitivity ~ 12 g / (1 << 14) LSB
-    G12,
+impl RegisterBits for AccelOdr {
+    fn mask() -> u8 {
+        AccelOdr::_800_Hz.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
 }
 
-impl Sensitivity {
+/// Acceleration scale/sensitivity
+#[derive(Clone, Copy)]
+pub enum AccelScale {
+    /// +/- 2g
+    _2G,
+    /// +/- 4g
+    _4G,
+    /// +/- 8g
+    _8G,
+}
+
+impl Default for AccelScale {
+    fn default() -> Self {
+        AccelScale::_2G
+    }
+}
+
+impl RegisterBits for AccelScale {
+    fn mask() -> u8 {
+        AccelScale::_8G.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
+}
+
+impl AccelScale {
+    fn resolution(&self) -> f32 {
+        match self {
+            AccelScale::_2G => 2.0 / 32768.0,
+            AccelScale::_4G => 4.0 / 32768.0,
+            AccelScale::_8G => 8.0 / 32768.0,
+        }
+    }
+}
+
+/// Magnetometer Output Data Rate
+#[derive(Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub enum MagOdr {
+    /// 0.625Hz
+    _0_625_Hz = 0x00,
+    /// 1.25Hz
+    _1_25_Hz = 0x04,
+    /// 2.5Hz
+    _2_5_Hz = 0x08,
+    /// 5Hz
+    _5_Hz = 0x0C,
+    /// 10Hz
+    _10_Hz = 0x10,
+    /// 20Hz
+    _20_Hz = 0x14,
+    /// 40Hz
+    _40_Hz = 0x18,
+    /// 80Hz
+    _80_Hz = 0x1C,
+}
+
+impl Default for MagOdr {
+    fn default() -> Self {
+        MagOdr::_40_Hz
+    }
+}
+
+impl RegisterBits for MagOdr {
+    fn mask() -> u8 {
+        MagOdr::_80_Hz.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
+}
+
+/// Magnetometer full scale
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub enum MagScale {
+    /// +/- 4 gauss
+    _4_Ga = 0x00,
+    /// +/- 8 gauss
+    _8_Ga = 0x20,
+    /// +/- 12 gauss
+    _12_Ga = 0x40,
+    /// +/- 16 gauss
+    _16_Ga = 0x60,
+}
+
+impl RegisterBits for MagScale {
+    fn mask() -> u8 {
+        MagScale::_16_Ga.value()
+    }
+
     fn value(&self) -> u8 {
         *self as u8
     }
 }
 
 /// Magnetrometer mode
-#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy)]
 pub enum MagMode {
     /// Continous mode
-    CONTINUOUS = 0x00,
+    Continous = 0x00,
     /// Single
-    SINGLE = 0x01,
+    Single = 0x01,
     /// Pwr Down 1
-    POWER_DOWN_1 = 0x02,
+    PowerDown1 = 0x02,
     /// Pwr Down 2
-    POWER_DOWN_2 = 0x03,
+    PowerDown2 = 0x03,
 }
 
+impl RegisterBits for MagMode {
+    fn mask() -> u8 {
+        MagMode::PowerDown2.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
+}
+
+impl Default for MagMode {
+    fn default() -> Self {
+        MagMode::Continous
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 enum TemperatureControl {
-    DISABLE = 0x00,
-    ENABLE = 0x80,
+    Enable = 0x80,
+    Disable = 0x00,
+}
+
+impl Default for TemperatureControl {
+    fn default() -> Self {
+        TemperatureControl::Enable
+    }
+}
+
+impl RegisterBits for TemperatureControl {
+    fn mask() -> u8 {
+        TemperatureControl::Enable.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
 }
