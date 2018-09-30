@@ -1,24 +1,47 @@
-# `lsm303dlhc`
+# `lsm303c`
 
-> A platform agnostic driver to interface with the LSM303DLHC (accelerometer + compass)
+> no_std driver for the lsm303c (accelerometer + magnetometer/compass).
+
+[![Build Status](https://travis-ci.org/copterust/lsm303c.svg?branch=master)](https://travis-ci.org/copterust/lsm303c)
 
 ## What works
 
-- Reading the accelerometer
-- Reading the compass and temperature sensor
+- To be tested
 
-## TODO
+## Supported chips
 
-- [ ] Make sure this works with the `i2cdev` crate (i.e. with the Raspberry Pi)
-- [ ] Configuration. e.g. selecting the accelerometer / compass sensing range / sensitivity.
-- [ ] How to make the API compatible with device specific features like DMA and interrupts?
-- ???
+* `LSM303C`;
 
-## Examples
 
-You should find at least one example in the [f3] crate.
+## Basic usage
 
-[f3]: https://docs.rs/f3/~0.5
+Include [library](https://crates.io/crates/lsm303c) as a dependency in your Cargo.toml
+[![crates.io](http://meritbadge.herokuapp.com/lsm303c?style=flat-square)](https://crates.io/crates/lsm303c):
+
+```
+[dependencies.lsm303c]
+version = "<version>"
+```
+
+Use embedded-hal implementation to get I2C handle and delay then create lsm303c handle:
+
+```rust
+extern crate lsm303c; // or just use lsm303c; if 2018 edition is used.
+
+// to create sensor with default configuration:
+let mut lsm = LSM303::default(l2c, &mut delay)?;
+// to get all supported measurements:
+let all = marg.all()?;
+println!("{:?}", all);
+```
+
+## More examples
+
+Number of examples can be found in [proving-ground](https://github.com/copterust/proving-ground) repo.
+
+## Documentation
+
+API Docs available on [docs.rs](https://docs.rs/lsm303c).
 
 ## License
 
@@ -30,8 +53,6 @@ Licensed under either of
 
 at your option.
 
-### Contribution
+## Testimonials
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the
-work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
-additional terms or conditions.
+Started off as a fork of [japaric's lsm303ldhc repo](https://github.com/japaric/lsm303dlhc).

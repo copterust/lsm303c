@@ -1,24 +1,28 @@
-pub const ADDRESS: u8 = 0b0011110;
+pub const ADDRESS: u8 = 0x1E;
 
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub enum Register {
-    CRA_REG_M = 0x00,
-    CRB_REG_M = 0x01,
-    MR_REG_M = 0x02,
-    OUT_X_H_M = 0x03,
-    OUT_X_L_M = 0x04,
-    OUT_Z_H_M = 0x05,
-    OUT_Z_L_M = 0x06,
-    OUT_Y_H_M = 0x07,
-    OUT_Y_L_M = 0x08,
-    SR_REG_M = 0x09,
-    IRA_REG_M = 0x0A,
-    IRB_REG_M = 0x0B,
-    IRC_REG_M = 0x0C,
-    TEMP_OUT_H_M = 0x31,
-    TEMP_OUT_L_M = 0x32,
+    MAG_WHO_AM_I = 0x0F,
+    CTRL1 = 0x20,
+    CTRL2 = 0x21,
+    CTRL3 = 0x22,
+    CTRL4 = 0x23,
+    CTRL5 = 0x24,
+    STATUS_REG = 0x27,
+    OUTX_L = 0x28,
+    OUTX_H = 0x29,
+    OUTY_L = 0x2A,
+    OUTY_H = 0x2B,
+    OUTZ_L = 0x2C,
+    OUTZ_H = 0x2D,
+    TEMP_OUT_L = 0x2E,
+    TEMP_OUT_H = 0x2F,
+    INT_CFG = 0x30,
+    INT_SRC = 0x31,
+    INT_THS_L = 0x32,
+    INT_THS_H = 0x33,
 }
 
 impl Register {

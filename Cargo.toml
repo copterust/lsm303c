@@ -1,17 +1,17 @@
 [package]
-authors = ["Jorge Aparicio <jorge@japaric.io>"]
+authors = ["Roma Sokolov", "Alexander Zhuravlev", "Jorge Aparicio <jorge@japaric.io>"]
 categories = ["embedded", "hardware-support", "no-std"]
-description = "A platform agnostic driver to interface with the LSM303DLHC (accelerometer + compass)"
-documentation = "https://docs.rs/lsm303dlhc"
+description = "A platform agnostic driver to interface with the LSM303C (accelerometer + compass)"
+documentation = "https://docs.rs/lsm303c"
 keywords = ["embedded-hal-driver", "accelerometer", "compass", "MEMS"]
 license = "MIT OR Apache-2.0"
-name = "lsm303dlhc"
-repository = "https://github.com/japaric/lsm303dlhc"
-version = "0.2.0"
+name = "lsm303c"
+repository = "https://github.com/copterust/lsm303c"
+version = "0.1.0"
 
 [dependencies]
-embedded-hal = "0.2.0"
-generic-array = "0.11.0"
+embedded-hal = "0.2.1"
+generic-array = "0.12.0"
 
 [dependencies.cast]
 default-features = false
