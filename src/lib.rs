@@ -341,6 +341,14 @@ pub enum MagScale {
     /// +/- 16 gauss
     _16_Ga = 0x60,
 }
+// LSM303C only supports 16 ga
+// mgauss/LSB
+
+impl Default for MagScale {
+    fn default() -> Self {
+        MagScale::_16_Ga
+    }
+}
 
 impl RegisterBits for MagScale {
     fn mask() -> u8 {
@@ -349,6 +357,17 @@ impl RegisterBits for MagScale {
 
     fn value(&self) -> u8 {
         *self as u8
+    }
+}
+
+impl MagScale {
+    fn resolution(&self) -> f32 {
+        match self {
+            MagScale::_4_Ga => 4.0 / 32768.0,
+            MagScale::_8_Ga => 8.0 / 32768.0,
+            MagScale::_12_Ga => 12.0 / 32768.0,
+            MagScale::_16_Ga => 16.0 / 32768.0,
+        }
     }
 }
 
