@@ -16,13 +16,16 @@ extern crate generic_array;
 
 use core::mem;
 
-use cast::u16;
+use cast::{f32, u16};
 use generic_array::typenum::consts::*;
 use generic_array::{ArrayLength, GenericArray};
 use hal::blocking::i2c::{Write, WriteRead};
 
 mod accel;
 mod mag;
+
+const TEMP_RESOLUTION: f32 = 0.125;
+const TEMP_ZERO_OFFSET: f32 = 25.0;
 
 /// LSM303C driver
 pub struct Lsm303c<I2C> {
@@ -86,15 +89,21 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         self.write_mag_register_with_mask(mag::Register::CTRL1, odr)
     }
 
-    /// Temperature sensor measurement
+    /// Temperature sensor measurement in Celcius
+    ///
+    /// - Range: [-40, +85] C
+    pub fn temp(&mut self) -> Result<f32, E> {
+        let mut rt = self.raw_temp()?;
+        Ok(f32(rt) * TEMP_RESOLUTION + TEMP_ZERO_OFFSET)
+    }
+
+    /// Raw temperature sensor measurement
     ///
     /// - Resolution: 12-bit
-    /// - Range: [-40, +85]
-    pub fn temp(&mut self) -> Result<i16, E> {
-        let temp_out_l = self.read_mag_register(mag::Register::TEMP_OUT_L)?;
-        let temp_out_h = self.read_mag_register(mag::Register::TEMP_OUT_H)?;
-
-        Ok(((u16(temp_out_l) + (u16(temp_out_h) << 8)) as i16) >> 4)
+    pub fn raw_temp(&mut self) -> Result<i16, E> {
+        let buffer = self.read_mag_registers::<U2>(mag::Register::TEMP_OUT_L)?;
+        let t = ((u16(buffer[1]) << 8) | u16(buffer[0])) as i16;
+        Ok(t >> 4)
     }
 
     /// Sets accelerometer full scalue
@@ -121,7 +130,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                                           -> Result<(), E>
         where RB: RegisterBits
     {
-        self.modify_accel_register(reg, |r| (r & RB::mask()) | v.value())
+        self.modify_accel_register(reg, |r| (r & !RB::mask()) | v.value())
     }
 
     fn write_mag_register_with_mask<RB>(&mut self,
@@ -130,7 +139,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                                         -> Result<(), E>
         where RB: RegisterBits
     {
-        self.modify_mag_register(reg, |r| (r & RB::mask()) | v.value())
+        self.modify_mag_register(reg, |r| (r & !RB::mask()) | v.value())
     }
 
     fn modify_mag_register<F>(&mut self,
@@ -171,7 +180,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(buffer[0])
     }
 
-    // NOTE has weird address increment semantics; use only with `OUT_X_H_M`
+    // NOTE has weird address increment semantics; use only with `OUT_X_H`
     fn read_mag_registers<N>(&mut self,
                              reg: mag::Register)
                              -> Result<GenericArray<u8, N>, E>
