@@ -13,16 +13,20 @@
 extern crate cast;
 extern crate embedded_hal as hal;
 extern crate generic_array;
+extern crate nalgebra;
+
+mod accel;
+mod mag;
 
 use core::mem;
 
 use cast::{f32, u16};
 use generic_array::typenum::consts::*;
 use generic_array::{ArrayLength, GenericArray};
-use hal::blocking::i2c::{Write, WriteRead};
 
-mod accel;
-mod mag;
+pub use nalgebra::Vector3;
+
+use hal::blocking::i2c::{Write, WriteRead};
 
 const TEMP_RESOLUTION: f32 = 0.125;
 const TEMP_ZERO_OFFSET: f32 = 25.0;
@@ -60,13 +64,13 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     }
 
     /// Accelerometer measurements
-    pub fn accel(&mut self) -> Result<I16x3, E> {
+    pub fn accel(&mut self) -> Result<Vector3<i16>, E> {
         let buffer: GenericArray<u8, U6> =
             self.read_accel_registers(accel::Register::OUT_X_L)?;
 
-        Ok(I16x3 { x: (u16(buffer[0]) + (u16(buffer[1]) << 8)) as i16,
-                   y: (u16(buffer[2]) + (u16(buffer[3]) << 8)) as i16,
-                   z: (u16(buffer[4]) + (u16(buffer[5]) << 8)) as i16, })
+        Ok(Vector3::new((u16(buffer[0]) + (u16(buffer[1]) << 8)) as i16,
+                        (u16(buffer[2]) + (u16(buffer[3]) << 8)) as i16,
+                        (u16(buffer[4]) + (u16(buffer[5]) << 8)) as i16))
     }
 
     /// Sets the accelerometer output data rate
@@ -75,13 +79,13 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     }
 
     /// Magnetometer measurements
-    pub fn mag(&mut self) -> Result<I16x3, E> {
+    pub fn mag(&mut self) -> Result<Vector3<i16>, E> {
         let buffer: GenericArray<u8, U6> =
             self.read_mag_registers(mag::Register::OUTX_L)?;
 
-        Ok(I16x3 { x: (u16(buffer[1]) + (u16(buffer[0]) << 8)) as i16,
-                   y: (u16(buffer[5]) + (u16(buffer[4]) << 8)) as i16,
-                   z: (u16(buffer[3]) + (u16(buffer[2]) << 8)) as i16, })
+        Ok(Vector3::new((u16(buffer[1]) + (u16(buffer[0]) << 8)) as i16,
+                        (u16(buffer[5]) + (u16(buffer[4]) << 8)) as i16,
+                        (u16(buffer[3]) + (u16(buffer[2]) << 8)) as i16))
     }
 
     /// Sets the magnetometer output data rate
@@ -93,7 +97,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     ///
     /// - Range: [-40, +85] C
     pub fn temp(&mut self) -> Result<f32, E> {
-        let mut rt = self.raw_temp()?;
+        let rt = self.raw_temp()?;
         Ok(f32(rt) * TEMP_RESOLUTION + TEMP_ZERO_OFFSET)
     }
 
@@ -210,17 +214,6 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                           -> Result<(), E> {
         self.i2c.write(mag::ADDRESS, &[reg.addr(), byte])
     }
-}
-
-/// XYZ triple
-#[derive(Debug)]
-pub struct I16x3 {
-    /// X component
-    pub x: i16,
-    /// Y component
-    pub y: i16,
-    /// Z component
-    pub z: i16,
 }
 
 trait RegisterBits {
