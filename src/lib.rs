@@ -33,64 +33,97 @@ const TEMP_ZERO_OFFSET: f32 = 25.0;
 
 /// LSM303C driver
 pub struct Lsm303c<I2C> {
+    // connections
     i2c: I2C,
+    // configuration
+    mag_scale: MagScale,
+    accel_scale: AccelScale,
+    accel_odr: AccelOdr,
+    mag_odr: MagOdr,
+    mag_mode: MagMode,
+    temp_control: TempControl,
 }
 
 impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 {
-    /// Creates a new driver from a I2C peripheral
-    pub fn new<W: core::fmt::Write>(i2c: I2C, l: &mut W) -> Result<Self, E> {
-        let mut lsm303c = Lsm303c { i2c, };
+    /// Creates a new [`Lsm303c`] driver from a I2C peripheral with
+    /// default [`Accel scale`], [`Mag scale`], [`AccelOdr`],
+    /// [`MagOdr`], [`MagMode`], and [`TempControl`].
+    ///
+    /// [`Accel scale`]: ./enum.AccelScale.html
+    /// [`Mag scale`]: ./enum.MagScale.html
+    /// [`AccelOdr`]: ./enum.AccelOdr.html
+    /// [`MagOdr`]: ./enum.MagOdr.html
+    /// [`MagMode`]: ./enum.MagMode.html
+    /// [`TempControl`]: ./enum.TempControl.html
+    pub fn default(i2c: I2C) -> Result<Self, E> {
+        Lsm303c::new(i2c, None, None, None, None, None, None)
+    }
 
-        // TODO reset all the registers / the device
-
-        write!(l, "let's write\r\n");
-        // configure the accelerometer to operate at 400 Hz
-        lsm303c.write_accel_register_with_mask(accel::Register::CTRL1,
-                                               AccelOdr::default())?;
-        write!(l, "freq done\r\n");
-
-        // configure the magnetometer to operate in continuous mode
-        lsm303c.write_mag_register_with_mask(mag::Register::CTRL3,
-                                             MagMode::default())?;
-        write!(l, "cont mode done\r\n");
-
-        // enable the temperature sensor
-        lsm303c.write_mag_register_with_mask(mag::Register::CTRL1,
-                                             TemperatureControl::default())?;
-        write!(l, "enable temp done\r\n");
+    /// Creates a new [`Lsm303c`] driver from a I2C peripheral with
+    /// optionally provided [`Accel scale`], [`Mag scale`],
+    /// [`AccelOdr`], [`MagOdr`],
+    /// [`MagMode`], and [`TempControl`].
+    ///
+    /// [`Accel scale`]: ./enum.AccelScale.html
+    /// [`Mag scale`]: ./enum.MagScale.html
+    /// [`AccelOdr`]: ./enum.AccelOdr.html
+    /// [`MagOdr`]: ./enum.MagOdr.html
+    /// [`MagMode`]: ./enum.MagMode.html
+    /// [`TempControl`]: ./enum.TempControl.html
+    pub fn new(i2c: I2C,
+               accel_scale: Option<AccelScale>,
+               mag_scale: Option<MagScale>,
+               accel_odr: Option<AccelOdr>,
+               mag_odr: Option<MagOdr>,
+               mag_mode: Option<MagMode>,
+               temp_control: Option<TempControl>)
+               -> Result<Self, E> {
+        let mut lsm303c =
+            Lsm303c { i2c,
+                      accel_scale: accel_scale.unwrap_or_default(),
+                      mag_scale: mag_scale.unwrap_or_default(),
+                      accel_odr: accel_odr.unwrap_or_default(),
+                      mag_odr: mag_odr.unwrap_or_default(),
+                      mag_mode: mag_mode.unwrap_or_default(),
+                      temp_control: temp_control.unwrap_or_default(), };
+        lsm303c.init_lsm()?;
 
         Ok(lsm303c)
     }
 
-    /// Accelerometer measurements
-    pub fn accel(&mut self) -> Result<Vector3<i16>, E> {
+    fn init_lsm(&mut self) -> Result<(), E> {
+        // TODO reset all the registers / the device
+        self._mag_odr()?;
+        self._mag_scale()?;
+        // _mag_block_update()?;
+        // MAG_XYZ_AxOperativeMode
+        self._mag_mode()?;
+
+        self._accel_scale()?;
+        // _accel_block_update()?;
+        // _accel_enable_axis()?;
+        self._accel_odr()?;
+
+        self._temp_control()?;
+
+        Ok(())
+    }
+
+    /// Reads and returns unscaled accelerometer measurements (LSB).
+    pub fn unscaled_accel(&mut self) -> Result<Vector3<i16>, E> {
         let buffer: GenericArray<u8, U6> =
             self.read_accel_registers(accel::Register::OUT_X_L)?;
 
-        Ok(Vector3::new((u16(buffer[0]) + (u16(buffer[1]) << 8)) as i16,
-                        (u16(buffer[2]) + (u16(buffer[3]) << 8)) as i16,
-                        (u16(buffer[4]) + (u16(buffer[5]) << 8)) as i16))
+        Ok(self.to_vector(buffer, 0))
     }
 
-    /// Sets the accelerometer output data rate
-    pub fn accel_odr(&mut self, odr: AccelOdr) -> Result<(), E> {
-        self.write_accel_register_with_mask(accel::Register::CTRL1, odr)
-    }
-
-    /// Magnetometer measurements
-    pub fn mag(&mut self) -> Result<Vector3<i16>, E> {
+    /// Raw magnetometer measurements
+    pub fn unscaled_mag(&mut self) -> Result<Vector3<i16>, E> {
         let buffer: GenericArray<u8, U6> =
             self.read_mag_registers(mag::Register::OUTX_L)?;
 
-        Ok(Vector3::new((u16(buffer[1]) + (u16(buffer[0]) << 8)) as i16,
-                        (u16(buffer[5]) + (u16(buffer[4]) << 8)) as i16,
-                        (u16(buffer[3]) + (u16(buffer[2]) << 8)) as i16))
-    }
-
-    /// Sets the magnetometer output data rate
-    pub fn mag_odr(&mut self, odr: MagOdr) -> Result<(), E> {
-        self.write_mag_register_with_mask(mag::Register::CTRL1, odr)
+        Ok(self.to_vector(buffer, 0))
     }
 
     /// Temperature sensor measurement in Celcius
@@ -110,11 +143,96 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(t >> 4)
     }
 
-    /// Sets accelerometer full scalue
-    pub fn set_accel_scale(&mut self,
-                           accel_scale: AccelScale)
-                           -> Result<(), E> {
-        self.write_accel_register_with_mask(accel::Register::CTRL4, accel_scale)
+    /// Sets the accelerometer output data rate
+    ///
+    /// [`Accel scale`]: ./enum.AccelScale.html
+    pub fn accel_odr(&mut self, odr: AccelOdr) -> Result<(), E> {
+        self.accel_odr = odr;
+        self._accel_odr()
+    }
+
+    fn _accel_odr(&mut self) -> Result<(), E> {
+        let ao = self.accel_odr;
+        self.write_accel_register_with_mask(accel::Register::CTRL1, ao)
+    }
+
+    /// Sets the magnetometer output data rate  ([`Mag Odr`]).
+    ///
+    /// [`Mag Odr`]: ./enum.MagOdr.html
+    pub fn mag_odr(&mut self, odr: MagOdr) -> Result<(), E> {
+        self.mag_odr = odr;
+        self._mag_odr()
+    }
+
+    fn _mag_odr(&mut self) -> Result<(), E> {
+        let mo = self.mag_odr;
+        self.write_mag_register_with_mask(mag::Register::CTRL1, mo)
+    }
+
+    /// Sets accelerometer full reading scale ([`Accel scale`]).
+    ///
+    /// [`Accel scale`]: ./enum.AccelScale.html
+    pub fn accel_scale(&mut self, accel_scale: AccelScale) -> Result<(), E> {
+        self.accel_scale = accel_scale;
+        self._accel_scale()
+    }
+
+    fn _accel_scale(&mut self) -> Result<(), E> {
+        let asc = self.accel_scale;
+        self.write_accel_register_with_mask(accel::Register::CTRL4, asc)
+    }
+
+    /// Sets temperature control ([`Temp control`]).
+    ///
+    /// [`Temp control`]: ./enum.TempControl.html
+    pub fn temp_control(&mut self, control: TempControl) -> Result<(), E> {
+        self.temp_control = control;
+        self._temp_control()
+    }
+
+    fn _temp_control(&mut self) -> Result<(), E> {
+        let tc = self.temp_control;
+        self.write_mag_register_with_mask(mag::Register::CTRL1, tc)
+    }
+
+    /// Sets magnetometer mode ([`Mag mode`]).
+    ///
+    /// [`Mag mode`]: ./enum.MagMode.html
+    pub fn mag_mode(&mut self, mode: MagMode) -> Result<(), E> {
+        self.mag_mode = mode;
+        self._mag_mode()
+    }
+
+    fn _mag_mode(&mut self) -> Result<(), E> {
+        let mm = self.mag_mode;
+        self.write_mag_register_with_mask(mag::Register::CTRL3, mm)
+    }
+
+    /// Sets magnetometer full reading scale ([`Mag scale`]).
+    ///
+    /// [`Mag scale`]: ./enum.MagScale.html
+    pub fn mag_scale(&mut self, mag_scale: MagScale) -> Result<(), E> {
+        self.mag_scale = mag_scale;
+        self._mag_scale()
+    }
+
+    fn _mag_scale(&mut self) -> Result<(), E> {
+        let ms = self.mag_scale;
+        self.write_mag_register_with_mask(mag::Register::CTRL2, ms)
+    }
+
+    fn to_vector<N>(&self,
+                    buffer: GenericArray<u8, N>,
+                    offset: usize)
+                    -> Vector3<i16>
+        where N: ArrayLength<u8>
+    {
+        Vector3::new(((u16(buffer[offset + 0]) << 8) | u16(buffer[offset + 1]))
+                     as i16,
+                     ((u16(buffer[offset + 2]) << 8) | u16(buffer[offset + 3]))
+                     as i16,
+                     ((u16(buffer[offset + 4]) << 8) | u16(buffer[offset + 5]))
+                     as i16)
     }
 
     fn modify_accel_register<F>(&mut self,
@@ -403,20 +521,23 @@ impl Default for MagMode {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum TemperatureControl {
+/// Controls (disable or enable) temperature sensor.
+pub enum TempControl {
+    /// Enable temperature sensor
     Enable = 0x80,
+    /// Disable temperature sensor
     Disable = 0x00,
 }
 
-impl Default for TemperatureControl {
+impl Default for TempControl {
     fn default() -> Self {
-        TemperatureControl::Enable
+        TempControl::Enable
     }
 }
 
-impl RegisterBits for TemperatureControl {
+impl RegisterBits for TempControl {
     fn mask() -> u8 {
-        TemperatureControl::Enable.value()
+        TempControl::Enable.value()
     }
 
     fn value(&self) -> u8 {
