@@ -39,8 +39,10 @@ pub struct Lsm303c<I2C> {
     mag_scale: MagScale,
     accel_scale: AccelScale,
     accel_odr: AccelOdr,
+    accel_bdu: AccelBdu,
     mag_odr: MagOdr,
     mag_mode: MagMode,
+    mag_bdu: MagBdu,
     temp_control: TempControl,
 }
 
@@ -48,27 +50,32 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 {
     /// Creates a new [`Lsm303c`] driver from a I2C peripheral with
     /// default [`Accel scale`], [`Mag scale`], [`AccelOdr`],
-    /// [`MagOdr`], [`MagMode`], and [`TempControl`].
+    /// [`MagOdr`], [`MagMode`], [`AccelBdu`], [`MagBdu`],
+    /// and [`TempControl`].
     ///
     /// [`Accel scale`]: ./enum.AccelScale.html
     /// [`Mag scale`]: ./enum.MagScale.html
     /// [`AccelOdr`]: ./enum.AccelOdr.html
     /// [`MagOdr`]: ./enum.MagOdr.html
     /// [`MagMode`]: ./enum.MagMode.html
+    /// [`MagBdu`]: ./enum.MagBdu.html
+    /// [`AccelBdu`]: ./enum.AccelBdu.html
     /// [`TempControl`]: ./enum.TempControl.html
     pub fn default(i2c: I2C) -> Result<Self, E> {
-        Lsm303c::new(i2c, None, None, None, None, None, None)
+        Lsm303c::new(i2c, None, None, None, None, None, None, None, None)
     }
 
     /// Creates a new [`Lsm303c`] driver from a I2C peripheral with
     /// optionally provided [`Accel scale`], [`Mag scale`],
-    /// [`AccelOdr`], [`MagOdr`],
+    /// [`AccelOdr`], [`MagOdr`], [`AccelBdu`], [`MagBdu`],
     /// [`MagMode`], and [`TempControl`].
     ///
     /// [`Accel scale`]: ./enum.AccelScale.html
     /// [`Mag scale`]: ./enum.MagScale.html
     /// [`AccelOdr`]: ./enum.AccelOdr.html
     /// [`MagOdr`]: ./enum.MagOdr.html
+    /// [`AccelBdu`]: ./enum.AccelBdu.html
+    /// [`MagBdu`]: ./enum.MagBdu.html
     /// [`MagMode`]: ./enum.MagMode.html
     /// [`TempControl`]: ./enum.TempControl.html
     pub fn new(i2c: I2C,
@@ -76,6 +83,8 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                mag_scale: Option<MagScale>,
                accel_odr: Option<AccelOdr>,
                mag_odr: Option<MagOdr>,
+               accel_bdu: Option<AccelBdu>,
+               mag_bdu: Option<MagBdu>,
                mag_mode: Option<MagMode>,
                temp_control: Option<TempControl>)
                -> Result<Self, E> {
@@ -85,6 +94,8 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                       mag_scale: mag_scale.unwrap_or_default(),
                       accel_odr: accel_odr.unwrap_or_default(),
                       mag_odr: mag_odr.unwrap_or_default(),
+                      accel_bdu: accel_bdu.unwrap_or_default(),
+                      mag_bdu: mag_bdu.unwrap_or_default(),
                       mag_mode: mag_mode.unwrap_or_default(),
                       temp_control: temp_control.unwrap_or_default(), };
         lsm303c.init_lsm()?;
@@ -96,12 +107,12 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         // TODO reset all the registers / the device
         self._mag_odr()?;
         self._mag_scale()?;
-        // _mag_block_update()?;
+        self._mag_block_data_update()?;
         // MAG_XYZ_AxOperativeMode
         self._mag_mode()?;
 
         self._accel_scale()?;
-        // _accel_block_update()?;
+        self._accel_block_data_update()?;
         // _accel_enable_axis()?;
         self._accel_odr()?;
 
@@ -182,6 +193,19 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         self.write_accel_register_with_mask(accel::Register::CTRL4, asc)
     }
 
+    /// Sets accelerometer block data update ([`Accel Bdu`]).
+    ///
+    /// [`Accel Bdu`]: ./enum.AccelBdu.html
+    pub fn accel_block_data_update(&mut self, bdu: AccelBdu) -> Result<(), E> {
+        self.accel_bdu = bdu;
+        self._accel_block_data_update()
+    }
+
+    fn _accel_block_data_update(&mut self) -> Result<(), E> {
+        let ab = self.accel_bdu;
+        self.write_accel_register_with_mask(accel::Register::CTRL1, ab)
+    }
+
     /// Sets temperature control ([`Temp control`]).
     ///
     /// [`Temp control`]: ./enum.TempControl.html
@@ -219,6 +243,19 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     fn _mag_scale(&mut self) -> Result<(), E> {
         let ms = self.mag_scale;
         self.write_mag_register_with_mask(mag::Register::CTRL2, ms)
+    }
+
+    /// Sets magnetometer block data update ([`Mag Bdu`]).
+    ///
+    /// [`Mag Bdu`]: ./enum.MagBdu.html
+    pub fn mag_block_data_update(&mut self, bdu: MagBdu) -> Result<(), E> {
+        self.mag_bdu = bdu;
+        self._mag_block_data_update()
+    }
+
+    fn _mag_block_data_update(&mut self) -> Result<(), E> {
+        let mb = self.mag_bdu;
+        self.write_mag_register_with_mask(mag::Register::CTRL5, mb)
     }
 
     fn to_vector<N>(&self,
@@ -538,6 +575,56 @@ impl Default for TempControl {
 impl RegisterBits for TempControl {
     fn mask() -> u8 {
         TempControl::Enable.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Block data update for accel data.
+pub enum MagBdu {
+    /// output registers not updated until MSB and LSB have been read
+    Enable = 0x40,
+    /// continuous update
+    Disable = 0x00,
+}
+
+impl Default for MagBdu {
+    fn default() -> Self {
+        MagBdu::Enable
+    }
+}
+
+impl RegisterBits for MagBdu {
+    fn mask() -> u8 {
+        MagBdu::Enable.value()
+    }
+
+    fn value(&self) -> u8 {
+        *self as u8
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Block data update for accel data.
+pub enum AccelBdu {
+    /// output registers not updated until MSB and LSB have been read
+    Enable = 0x08,
+    /// continuous update
+    Disable = 0x00,
+}
+
+impl Default for AccelBdu {
+    fn default() -> Self {
+        AccelBdu::Enable
+    }
+}
+
+impl RegisterBits for AccelBdu {
+    fn mask() -> u8 {
+        AccelBdu::Enable.value()
     }
 
     fn value(&self) -> u8 {
