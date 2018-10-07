@@ -320,6 +320,61 @@ impl RegisterBits for AccelBlockDataUpdate {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+/// Accel axes control
+pub struct AccelAxesControl {
+    x_axis: bool,
+    y_axis: bool,
+    z_axis: bool,
+}
+
+impl AccelAxesControl {
+    fn all_enabled() -> Self {
+        AccelAxesControl { x_axis: true,
+                           y_axis: true,
+                           z_axis: true, }
+    }
+
+    fn all_disabled() -> Self {
+        AccelAxesControl { x_axis: true,
+                           y_axis: true,
+                           z_axis: true, }
+    }
+
+    fn custom(x_axis: bool, y_axis: bool, z_axis: bool) -> Self {
+        AccelAxesControl { x_axis,
+                           y_axis,
+                           z_axis, }
+    }
+}
+
+impl Default for AccelAxesControl {
+    fn default() -> Self {
+        AccelAxesControl::all_enabled()
+    }
+}
+
+impl RegisterBits for AccelAxesControl {
+    fn mask() -> u8 {
+        AccelAxesControl::all_enabled().value()
+    }
+
+    fn value(&self) -> u8 {
+        let mut res: u8 = 0;
+        if (self.x_axis) {
+            res |= 0x01;
+        }
+        if (self.y_axis) {
+            res |= 0x02;
+        }
+        if (self.z_axis) {
+            res |= 0x04;
+        }
+
+        res
+    }
+}
+
 /// Configuration of Lsm303c
 #[derive(Copy, Clone, Debug)]
 pub struct LsmConfig {
@@ -332,6 +387,7 @@ pub struct LsmConfig {
     pub(crate) mag_mode: Option<MagMode>,
     pub(crate) mag_xy_operative_mode: Option<MagXYOperativeMode>,
     pub(crate) mag_z_operative_mode: Option<MagZOperativeMode>,
+    pub(crate) accel_axes_control: Option<AccelAxesControl>,
     pub(crate) temp_control: Option<TempControl>,
 }
 
@@ -339,7 +395,8 @@ impl LsmConfig {
     /// Creates Lsm303c configuration with default
     /// [`AccelScale`], [`MagScale`], [`AccelDataRate`],
     /// [`MagDataRate`], [`MagMode`], [`AccelBlockDataUpdate`],
-    /// [`MagBlockDataUpdate`], and [`TempControl`].
+    /// [`MagBlockDataUpdate`], [`MagXYOperativeMode`], [`MagZOperativeMode`],
+    /// [`AccelAxesControl`], and [`TempControl`].
     ///
     /// [`AccelScale`]: ./enum.AccelScale.html
     /// [`MagScale`]: ./enum.MagScale.html
@@ -348,6 +405,9 @@ impl LsmConfig {
     /// [`MagMode`]: ./enum.MagMode.html
     /// [`MagBlockDataUpdate`]: ./enum.MagBlockDataUpdate.html
     /// [`AccelBlockDataUpdate`]: ./enum.AccelBlockDataUpdate.html
+    /// [`MagXYOperativeMode`]: ./enum.MagXYOperativeMode.html
+    /// [`MagZOperativeMode`]: ./enum.MagZOperativeMode.html
+    /// [`AccelAxesControl`]: ./enum.AccelAxesControl.html
     /// [`TempControl`]: ./enum.TempControl.html
     pub fn new() -> Self {
         LsmConfig { accel_scale: None,
@@ -359,6 +419,7 @@ impl LsmConfig {
                     mag_mode: None,
                     mag_xy_operative_mode: None,
                     mag_z_operative_mode: None,
+                    accel_axes_control: None,
                     temp_control: None, }
     }
 
@@ -441,6 +502,16 @@ impl LsmConfig {
                                 operative_mode: MagZOperativeMode)
                                 -> &mut Self {
         self.mag_z_operative_mode = Some(operative_mode);
+        self
+    }
+
+    /// Sets accel axes control ([`AccelAxesControl`])
+    ///
+    /// [`AccelAxesControl`]: ./enum.AccelAxesControl.html
+    pub fn accel_axes_control(&mut self,
+                              axes_control: AccelAxesControl)
+                              -> &mut Self {
+        self.accel_axes_control = Some(axes_control);
         self
     }
 

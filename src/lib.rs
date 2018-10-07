@@ -78,6 +78,7 @@ pub struct Lsm303c<I2C> {
     mag_xy_operative_mode: MagXYOperativeMode,
     mag_z_operative_mode: MagZOperativeMode,
     mag_block_data_update: MagBlockDataUpdate,
+    accel_axes_control: AccelAxesControl,
     temp_control: TempControl,
 }
 
@@ -111,6 +112,8 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                                                    .unwrap_or_default(),
                       mag_z_operative_mode: config.mag_z_operative_mode
                                                   .unwrap_or_default(),
+                      accel_axes_control: config.accel_axes_control
+                                                .unwrap_or_default(),
                       temp_control: config.temp_control.unwrap_or_default(), };
         lsm303c.init_lsm()?;
 
@@ -128,7 +131,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
         self._accel_scale()?;
         self._accel_block_data_update()?;
-        // _accel_enable_axis()?;
+        self._accel_axes_control()?;
         self._accel_data_rate()?;
 
         self._temp_control()?;
@@ -151,6 +154,8 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                         .map(|v| self.mag_xy_operative_mode(v)))?;
         transpose(config.mag_z_operative_mode
                         .map(|v| self.mag_z_operative_mode(v)))?;
+        transpose(config.accel_axes_control
+                        .map(|v| self.accel_axes_control(v)))?;
 
         Ok(())
     }
@@ -242,6 +247,21 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     fn _accel_block_data_update(&mut self) -> Result<(), E> {
         let ab = self.accel_block_data_update;
         self.write_accel_register_with_mask(accel::Register::CTRL1, ab)
+    }
+
+    /// Enables or disables accelerometer axes ([`AccelAxesControl`]).
+    ///
+    /// [`AccelAxesControl`]: ./conf/enum.AccelAxesControl.html
+    pub fn accel_axes_control(&mut self,
+                              axes_control: AccelAxesControl)
+                              -> Result<(), E> {
+        self.accel_axes_control = axes_control;
+        self._accel_axes_control()
+    }
+
+    fn _accel_axes_control(&mut self) -> Result<(), E> {
+        let ac = self.accel_axes_control;
+        self.write_accel_register_with_mask(accel::Register::CTRL1, ac)
     }
 
     /// Configures temperature control ([`TempControl`]).
