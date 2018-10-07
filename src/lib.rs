@@ -55,12 +55,15 @@ use cast::{f32, u16};
 use generic_array::typenum::consts::*;
 use generic_array::{ArrayLength, GenericArray};
 
+use nalgebra::convert;
 pub use nalgebra::Vector3;
 
 use hal::blocking::i2c::{Write, WriteRead};
 
 pub use conf::*;
 
+/// G constant
+pub const G: f32 = 9.807;
 const TEMP_RESOLUTION: f32 = 0.125;
 const TEMP_ZERO_OFFSET: f32 = 25.0;
 
@@ -168,7 +171,29 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(self.to_vector(buffer, 0))
     }
 
-    /// Raw magnetometer measurements
+    /// Reads and returns accelerometer measurements converted to g.
+    pub fn accel(&mut self) -> Result<Vector3<f32>, E> {
+        let resolution = self.accel_scale.resolution();
+        let scale = G * resolution;
+        let raw = self.unscaled_accel()?;
+        let mut fraw: Vector3<f32> = convert(raw);
+        fraw *= scale;
+
+        Ok(fraw)
+    }
+
+    /// Reads and returns magnetometer measurements converted to gauss.
+    pub fn mag(&mut self) -> Result<Vector3<f32>, E> {
+        let resolution = self.accel_scale.resolution();
+        let scale = G * resolution;
+        let raw = self.unscaled_mag()?;
+        let mut fraw: Vector3<f32> = convert(raw);
+        fraw *= scale;
+
+        Ok(fraw)
+    }
+
+    /// Reads and returns unscaled magnetometer measurements (LSB).
     pub fn unscaled_mag(&mut self) -> Result<Vector3<i16>, E> {
         let buffer: GenericArray<u8, U6> =
             self.read_mag_registers(mag::Register::OUTX_L)?;
@@ -191,6 +216,30 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         let buffer = self.read_mag_registers::<U2>(mag::Register::TEMP_OUT_L)?;
         let t = ((u16(buffer[1]) << 8) | u16(buffer[0])) as i16;
         Ok(t >> 4)
+    }
+
+    /// Reads and returns raw unscaled Accelerometer + Magnetometer +
+    /// Thermometer measurements (LSB).
+    pub fn unscaled_all(&mut self) -> Result<UnscaledMeasurements, E> {
+        let accel = self.unscaled_accel()?;
+        let mag = self.unscaled_mag()?;
+        let temp = self.raw_temp()?;
+
+        Ok(UnscaledMeasurements { accel,
+                                  mag,
+                                  temp, })
+    }
+
+    /// Reads and returns Accelerometer + Magnetometer + Thermometer
+    /// measurements scaled and converted to respective units.
+    pub fn all(&mut self) -> Result<Measurements, E> {
+        let accel = self.accel()?;
+        let mag = self.mag()?;
+        let temp = self.temp()?;
+
+        Ok(Measurements { accel,
+                          mag,
+                          temp, })
     }
 
     /// Configures the accelerometer output data rate
@@ -460,6 +509,29 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                           -> Result<(), E> {
         self.i2c.write(mag::ADDRESS, &[reg.addr(), byte])
     }
+}
+
+/// Unscaled measurements (LSB)
+#[derive(Copy, Clone, Debug)]
+pub struct UnscaledMeasurements {
+    /// Accelerometer measurements (LSB)
+    pub accel: Vector3<i16>,
+    /// Magnetometer measurements (LSB)
+    pub mag: Vector3<i16>,
+    /// Temperature sensor measurement (LSB)
+    pub temp: i16,
+}
+
+/// Measurements scaled with respective scales and converted
+/// to appropriate units.
+#[derive(Copy, Clone, Debug)]
+pub struct Measurements {
+    /// Accelerometer measurements (g)
+    pub accel: Vector3<f32>,
+    /// Magnetometer measurements (ga, gausses)
+    pub mag: Vector3<f32>,
+    /// Temperature sensor measurement (C)
+    pub temp: f32,
 }
 
 fn transpose<T, E>(o: Option<Result<T, E>>) -> Result<Option<T>, E> {

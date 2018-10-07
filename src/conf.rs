@@ -66,7 +66,7 @@ impl RegisterBits for AccelScale {
 }
 
 impl AccelScale {
-    fn resolution(&self) -> f32 {
+    pub(crate) fn resolution(&self) -> f32 {
         match self {
             AccelScale::_2G => 2.0 / 32768.0,
             AccelScale::_4G => 4.0 / 32768.0,
@@ -113,20 +113,20 @@ impl RegisterBits for MagDataRate {
     }
 }
 
-/// Magnetometer full scale
+/// Magnetometer full scale.
+/// LSM303C only supports 16 ga.
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum MagScale {
-    /// +/- 4 gauss
-    _4_Ga = 0x00,
-    /// +/- 8 gauss
-    _8_Ga = 0x20,
-    /// +/- 12 gauss
-    _12_Ga = 0x40,
+    // /// +/- 4 gauss
+    // _4_Ga = 0x00,
+    // /// +/- 8 gauss
+    // _8_Ga = 0x20,
+    // /// +/- 12 gauss
+    // _12_Ga = 0x40,
     /// +/- 16 gauss
     _16_Ga = 0x60,
 }
-// LSM303C only supports 16 ga
 // mgauss/LSB
 
 impl Default for MagScale {
@@ -146,11 +146,11 @@ impl RegisterBits for MagScale {
 }
 
 impl MagScale {
-    fn resolution(&self) -> f32 {
+    pub(crate) fn resolution(&self) -> f32 {
         match self {
-            MagScale::_4_Ga => 4.0 / 32768.0,
-            MagScale::_8_Ga => 8.0 / 32768.0,
-            MagScale::_12_Ga => 12.0 / 32768.0,
+            // MagScale::_4_Ga => 4.0 / 32768.0,
+            // MagScale::_8_Ga => 8.0 / 32768.0,
+            // MagScale::_12_Ga => 12.0 / 32768.0,
             MagScale::_16_Ga => 16.0 / 32768.0,
         }
     }
