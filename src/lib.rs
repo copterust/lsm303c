@@ -184,7 +184,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
     /// Reads and returns magnetometer measurements converted to gauss.
     pub fn mag(&mut self) -> Result<Vector3<f32>, E> {
-        let resolution = self.accel_scale.resolution();
+        let resolution = self.mag_scale.resolution();
         let scale = resolution;
         let raw = self.unscaled_mag()?;
         let mut fraw: Vector3<f32> = convert(raw);
