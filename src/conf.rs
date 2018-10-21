@@ -151,7 +151,7 @@ impl MagScale {
             // MagScale::_4_Ga => 4.0 / 32768.0,
             // MagScale::_8_Ga => 8.0 / 32768.0,
             // MagScale::_12_Ga => 12.0 / 32768.0,
-            MagScale::_16_Ga => 16.0 / 32768.0,
+            MagScale::_16_Ga => 0.58,
         }
     }
 }

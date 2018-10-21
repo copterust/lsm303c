@@ -182,7 +182,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(fraw)
     }
 
-    /// Reads and returns magnetometer measurements converted to gauss.
+    /// Reads and returns magnetometer measurements converted to mgauss.
     pub fn mag(&mut self) -> Result<Vector3<f32>, E> {
         let resolution = self.mag_scale.resolution();
         let scale = resolution;
@@ -404,11 +404,11 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                     -> Vector3<i16>
         where N: ArrayLength<u8>
     {
-        Vector3::new(((u16(buffer[offset + 0]) << 8) | u16(buffer[offset + 1]))
+        Vector3::new(((u16(buffer[offset + 1]) << 8) | u16(buffer[offset + 0]))
                      as i16,
-                     ((u16(buffer[offset + 2]) << 8) | u16(buffer[offset + 3]))
+                     ((u16(buffer[offset + 3]) << 8) | u16(buffer[offset + 2]))
                      as i16,
-                     ((u16(buffer[offset + 4]) << 8) | u16(buffer[offset + 5]))
+                     ((u16(buffer[offset + 5]) << 8) | u16(buffer[offset + 4]))
                      as i16)
     }
 
@@ -462,9 +462,10 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         {
             let buffer: &mut [u8] = &mut buffer;
 
-            const MULTI: u8 = 1 << 7;
-            self.i2c
-                .write_read(accel::ADDRESS, &[reg.addr() | MULTI], buffer)?;
+            const I2C_AUTO_INCREMENT: u8 = 1 << 7;
+            self.i2c.write_read(accel::ADDRESS,
+                                 &[reg.addr() | I2C_AUTO_INCREMENT],
+                                 buffer)?;
         }
 
         Ok(buffer)
@@ -489,8 +490,10 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
         {
             let buffer: &mut [u8] = &mut buffer;
-
-            self.i2c.write_read(mag::ADDRESS, &[reg.addr()], buffer)?;
+            const I2C_AUTO_INCREMENT: u8 = 1 << 7;
+            self.i2c.write_read(mag::ADDRESS,
+                                 &[reg.addr() | I2C_AUTO_INCREMENT],
+                                 buffer)?;
         }
 
         Ok(buffer)
