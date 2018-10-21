@@ -67,6 +67,28 @@ pub const G: f32 = 9.807;
 const TEMP_RESOLUTION: f32 = 0.125;
 const TEMP_ZERO_OFFSET: f32 = 25.0;
 
+const LSM_ACC_WHO_AM_I: u8 = 0x41;
+const LSM_MAG_WHO_AM_I: u8 = 0x3d;
+
+/// LSM Error
+#[derive(Debug, Copy, Clone)]
+pub enum Error<E> {
+    /// Accelerometer WHO_AM_I returned invalid value (returned value is
+    /// argument).
+    InvalidAccDevice(u8),
+    /// Magnetometer WHO_AM_I returned invalid value (returned value is
+    /// argument).
+    InvalidMagDevice(u8),
+    /// Underlying bus error.
+    BusError(E),
+}
+
+impl<E> core::convert::From<E> for Error<E> {
+    fn from(error: E) -> Self {
+        Error::BusError(error)
+    }
+}
+
 /// LSM303C driver
 pub struct Lsm303c<I2C> {
     // connections
@@ -89,7 +111,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 {
     /// Creates a new [`Lsm303c`] driver from a I2C peripheral with
     /// default configuration.
-    pub fn default(i2c: I2C) -> Result<Self, E> {
+    pub fn default(i2c: I2C) -> Result<Self, Error<E>> {
         Lsm303c::new(i2c, &mut LsmConfig::new())
     }
 
@@ -97,7 +119,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     /// provided [`LsmConfig`].
     ///
     /// [`LsmConfig`]: ./conf/enum.LsmConfig.html
-    pub fn new(i2c: I2C, config: &mut LsmConfig) -> Result<Self, E> {
+    pub fn new(i2c: I2C, config: &mut LsmConfig) -> Result<Self, Error<E>> {
         let mut lsm303c =
             Lsm303c { i2c,
                       accel_scale: config.accel_scale.unwrap_or_default(),
@@ -119,8 +141,17 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                                                 .unwrap_or_default(),
                       temp_control: config.temp_control.unwrap_or_default(), };
         lsm303c.init_lsm()?;
-
-        Ok(lsm303c)
+        let acc_wai = lsm303c.acc_who_am_i()?;
+        if acc_wai == LSM_ACC_WHO_AM_I {
+            let mag_wai = lsm303c.mag_who_am_i()?;
+            if mag_wai == LSM_MAG_WHO_AM_I {
+                Ok(lsm303c)
+            } else {
+                Err(Error::InvalidMagDevice(mag_wai))
+            }
+        } else {
+            Err(Error::InvalidAccDevice(acc_wai))
+        }
     }
 
     fn init_lsm(&mut self) -> Result<(), E> {
@@ -140,6 +171,16 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         self._temp_control()?;
 
         Ok(())
+    }
+
+    /// Reads the accelerometer WHO_AM_I register
+    pub fn acc_who_am_i(&mut self) -> Result<u8, E> {
+        self.read_accel_register(accel::Register::WHO_AM_I)
+    }
+
+    /// Reads the magnetometer WHO_AM_I register
+    pub fn mag_who_am_i(&mut self) -> Result<u8, E> {
+        self.read_mag_register(mag::Register::WHO_AM_I)
     }
 
     /// Configures device using provided [`MpuConfig`].

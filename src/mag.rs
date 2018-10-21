@@ -4,13 +4,13 @@ pub const ADDRESS: u8 = 0x1E;
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub enum Register {
-    MAG_WHO_AM_I = 0x0F,
+    WHO_AM_I = 0x0F,
     CTRL1 = 0x20,
     CTRL2 = 0x21,
     CTRL3 = 0x22,
     CTRL4 = 0x23,
     CTRL5 = 0x24,
-    STATUS_REG = 0x27,
+    STATUS = 0x27,
     OUTX_L = 0x28,
     OUTX_H = 0x29,
     OUTY_L = 0x2A,
