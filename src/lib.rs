@@ -37,7 +37,6 @@
 
 #![deny(missing_docs)]
 #![deny(warnings)]
-#![allow(unused)]
 #![no_std]
 
 extern crate cast;
@@ -139,7 +138,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
                                                   .unwrap_or_default(),
                       accel_axes_control: config.accel_axes_control
                                                 .unwrap_or_default(),
-                      temp_control: config.temp_control.unwrap_or_default(), };
+                      temp_control: config.temp_control.unwrap_or_default() };
         lsm303c.init_lsm()?;
         let acc_wai = lsm303c.acc_who_am_i()?;
         if acc_wai == LSM_ACC_WHO_AM_I {
@@ -268,7 +267,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
         Ok(UnscaledMeasurements { accel,
                                   mag,
-                                  temp, })
+                                  temp })
     }
 
     /// Reads and returns Accelerometer + Magnetometer + Thermometer
@@ -280,7 +279,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
         Ok(Measurements { accel,
                           mag,
-                          temp, })
+                          temp })
     }
 
     /// Configures the accelerometer output data rate

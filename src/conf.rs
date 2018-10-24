@@ -329,22 +329,25 @@ pub struct AccelAxesControl {
 }
 
 impl AccelAxesControl {
-    fn all_enabled() -> Self {
+    /// All axes are enabled
+    pub fn all_enabled() -> Self {
         AccelAxesControl { x_axis: true,
                            y_axis: true,
-                           z_axis: true, }
+                           z_axis: true }
     }
 
-    fn all_disabled() -> Self {
+    /// All axes are disabled
+    pub fn all_disabled() -> Self {
         AccelAxesControl { x_axis: true,
                            y_axis: true,
-                           z_axis: true, }
+                           z_axis: true }
     }
 
-    fn custom(x_axis: bool, y_axis: bool, z_axis: bool) -> Self {
+    /// Custom configuration
+    pub fn custom(x_axis: bool, y_axis: bool, z_axis: bool) -> Self {
         AccelAxesControl { x_axis,
                            y_axis,
-                           z_axis, }
+                           z_axis }
     }
 }
 
@@ -361,13 +364,13 @@ impl RegisterBits for AccelAxesControl {
 
     fn value(&self) -> u8 {
         let mut res: u8 = 0;
-        if (self.x_axis) {
+        if self.x_axis {
             res |= 0x01;
         }
-        if (self.y_axis) {
+        if self.y_axis {
             res |= 0x02;
         }
-        if (self.z_axis) {
+        if self.z_axis {
             res |= 0x04;
         }
 
@@ -420,7 +423,7 @@ impl LsmConfig {
                     mag_xy_operative_mode: None,
                     mag_z_operative_mode: None,
                     accel_axes_control: None,
-                    temp_control: None, }
+                    temp_control: None }
     }
 
     /// Sets accelerometer full reading scale ([`AccelScale`])
