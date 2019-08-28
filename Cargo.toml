@@ -7,7 +7,7 @@ keywords = ["embedded-hal-driver", "accelerometer", "compass", "MEMS"]
 license = "MIT OR Apache-2.0"
 name = "lsm303c"
 repository = "https://github.com/copterust/lsm303c"
-version = "0.2.0"
+version = "0.2.1-alpha.0"
 
 [dependencies]
 embedded-hal = "0.2.1"
