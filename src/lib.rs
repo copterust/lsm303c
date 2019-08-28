@@ -41,21 +41,12 @@
 
 extern crate cast;
 extern crate embedded_hal as hal;
-extern crate generic_array;
-extern crate nalgebra;
 
 mod accel;
 mod conf;
 mod mag;
 
-use core::mem;
-
 use cast::{f32, u16};
-use generic_array::typenum::consts::*;
-use generic_array::{ArrayLength, GenericArray};
-
-use nalgebra::convert;
-pub use nalgebra::Vector3;
 
 use hal::blocking::i2c::{Write, WriteRead};
 
@@ -204,40 +195,33 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     }
 
     /// Reads and returns unscaled accelerometer measurements (LSB).
-    pub fn unscaled_accel(&mut self) -> Result<Vector3<i16>, E> {
-        let buffer: GenericArray<u8, U6> =
-            self.read_accel_registers(accel::Register::OUT_X_L)?;
+    pub fn unscaled_accel<T: From<[i16; 3]>>(&mut self) -> Result<T, E> {
+        let buffer = &mut [0; 6];
+        self.read_accel_registers(accel::Register::OUT_X_L, buffer)?;
 
         Ok(self.to_vector(buffer, 0))
     }
 
     /// Reads and returns accelerometer measurements converted to g.
-    pub fn accel(&mut self) -> Result<Vector3<f32>, E> {
+    pub fn accel<T: From<[f32; 3]>>(&mut self) -> Result<T, E> {
         let resolution = self.accel_scale.resolution();
         let scale = G * resolution;
-        let raw = self.unscaled_accel()?;
-        let mut fraw: Vector3<f32> = convert(raw);
-        fraw *= scale;
-
-        Ok(fraw)
+        let res = convert(self.unscaled_accel()?, scale);
+        Ok(res.into())
     }
 
     /// Reads and returns magnetometer measurements converted to mgauss.
-    pub fn mag(&mut self) -> Result<Vector3<f32>, E> {
+    pub fn mag<T: From<[f32; 3]>>(&mut self) -> Result<T, E> {
         let resolution = self.mag_scale.resolution();
         let scale = resolution;
-        let raw = self.unscaled_mag()?;
-        let mut fraw: Vector3<f32> = convert(raw);
-        fraw *= scale;
-
-        Ok(fraw)
+        let res = convert(self.unscaled_mag()?, scale);
+        Ok(res.into())
     }
 
     /// Reads and returns unscaled magnetometer measurements (LSB).
-    pub fn unscaled_mag(&mut self) -> Result<Vector3<i16>, E> {
-        let buffer: GenericArray<u8, U6> =
-            self.read_mag_registers(mag::Register::OUTX_L)?;
-
+    pub fn unscaled_mag<T: From<[i16; 3]>>(&mut self) -> Result<T, E> {
+        let buffer = &mut [0; 6];
+        self.read_mag_registers(mag::Register::OUTX_L, buffer)?;
         Ok(self.to_vector(buffer, 0))
     }
 
@@ -253,14 +237,16 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
     ///
     /// - Resolution: 12-bit
     pub fn raw_temp(&mut self) -> Result<i16, E> {
-        let buffer = self.read_mag_registers::<U2>(mag::Register::TEMP_OUT_L)?;
+        let buffer = &mut [0; 2];
+        self.read_mag_registers(mag::Register::TEMP_OUT_L, buffer)?;
         let t = ((u16(buffer[1]) << 8) | u16(buffer[0])) as i16;
         Ok(t >> 4)
     }
 
     /// Reads and returns raw unscaled Accelerometer + Magnetometer +
     /// Thermometer measurements (LSB).
-    pub fn unscaled_all(&mut self) -> Result<UnscaledMeasurements, E> {
+    pub fn unscaled_all<T: From<[i16; 3]>>(&mut self) -> Result<UnscaledMeasurements<T>, E>
+    {
         let accel = self.unscaled_accel()?;
         let mag = self.unscaled_mag()?;
         let temp = self.raw_temp()?;
@@ -272,7 +258,7 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
     /// Reads and returns Accelerometer + Magnetometer + Thermometer
     /// measurements scaled and converted to respective units.
-    pub fn all(&mut self) -> Result<Measurements, E> {
+    pub fn all<T: From<[f32; 3]>>(&mut self) -> Result<Measurements<T>, E> {
         let accel = self.accel()?;
         let mag = self.mag()?;
         let temp = self.temp()?;
@@ -438,18 +424,18 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         self.write_mag_register_with_mask(mag::Register::CTRL5, mb)
     }
 
-    fn to_vector<N>(&self,
-                    buffer: GenericArray<u8, N>,
+    fn to_vector<T>(&self,
+                    buffer: &[u8; 6],
                     offset: usize)
-                    -> Vector3<i16>
-        where N: ArrayLength<u8>
+                    -> T
+    where T: From<[i16; 3]>
     {
-        Vector3::new(((u16(buffer[offset + 1]) << 8) | u16(buffer[offset + 0]))
-                     as i16,
-                     ((u16(buffer[offset + 3]) << 8) | u16(buffer[offset + 2]))
-                     as i16,
-                     ((u16(buffer[offset + 5]) << 8) | u16(buffer[offset + 4]))
-                     as i16)
+
+        [
+            ((u16(buffer[offset + 1]) << 8) | u16(buffer[offset + 0])) as i16,
+            ((u16(buffer[offset + 3]) << 8) | u16(buffer[offset + 2])) as i16,
+            ((u16(buffer[offset + 5]) << 8) | u16(buffer[offset + 4])) as i16
+        ].into()
     }
 
     fn modify_accel_register<F>(&mut self,
@@ -492,51 +478,44 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
         Ok(())
     }
 
-    fn read_accel_registers<N>(&mut self,
-                               reg: accel::Register)
-                               -> Result<GenericArray<u8, N>, E>
-        where N: ArrayLength<u8>
+    fn read_accel_registers(&mut self,
+                               reg: accel::Register,
+                               buffer: &mut [u8],
+                               )
+                               -> Result<(), E>
     {
-        let mut buffer: GenericArray<u8, N> = unsafe { mem::uninitialized() };
+        const I2C_AUTO_INCREMENT: u8 = 1 << 7;
+        self.i2c.write_read(accel::ADDRESS,
+                             &[reg.addr() | I2C_AUTO_INCREMENT],
+                             buffer)?;
 
-        {
-            let buffer: &mut [u8] = &mut buffer;
-
-            const I2C_AUTO_INCREMENT: u8 = 1 << 7;
-            self.i2c.write_read(accel::ADDRESS,
-                                 &[reg.addr() | I2C_AUTO_INCREMENT],
-                                 buffer)?;
-        }
-
-        Ok(buffer)
+        Ok(())
     }
 
     fn read_accel_register(&mut self, reg: accel::Register) -> Result<u8, E> {
-        self.read_accel_registers::<U1>(reg).map(|b| b[0])
+        let buffer = &mut [0];
+        self.read_accel_registers(reg, buffer)?;
+        Ok(buffer[0])
     }
 
     fn read_mag_register(&mut self, reg: mag::Register) -> Result<u8, E> {
-        let buffer: GenericArray<u8, U1> = self.read_mag_registers(reg)?;
+        let buffer = &mut [0; 1];
+        self.read_mag_registers(reg, buffer)?;
         Ok(buffer[0])
     }
 
     // NOTE has weird address increment semantics; use only with `OUT_X_H`
-    fn read_mag_registers<N>(&mut self,
-                             reg: mag::Register)
-                             -> Result<GenericArray<u8, N>, E>
-        where N: ArrayLength<u8>
+    fn read_mag_registers(&mut self,
+                             reg: mag::Register,
+                             buffer: &mut [u8])
+                             -> Result<(), E>
     {
-        let mut buffer: GenericArray<u8, N> = unsafe { mem::uninitialized() };
+        const I2C_AUTO_INCREMENT: u8 = 1 << 7;
+        self.i2c.write_read(mag::ADDRESS,
+                             &[reg.addr() | I2C_AUTO_INCREMENT],
+                             buffer)?;
 
-        {
-            let buffer: &mut [u8] = &mut buffer;
-            const I2C_AUTO_INCREMENT: u8 = 1 << 7;
-            self.i2c.write_read(mag::ADDRESS,
-                                 &[reg.addr() | I2C_AUTO_INCREMENT],
-                                 buffer)?;
-        }
-
-        Ok(buffer)
+        Ok(())
     }
 
     fn write_accel_register(&mut self,
@@ -556,11 +535,11 @@ impl<I2C, E> Lsm303c<I2C> where I2C: WriteRead<Error = E> + Write<Error = E>
 
 /// Unscaled measurements (LSB)
 #[derive(Copy, Clone, Debug)]
-pub struct UnscaledMeasurements {
+pub struct UnscaledMeasurements<T> {
     /// Accelerometer measurements (LSB)
-    pub accel: Vector3<i16>,
+    pub accel: T,
     /// Magnetometer measurements (LSB)
-    pub mag: Vector3<i16>,
+    pub mag: T,
     /// Temperature sensor measurement (LSB)
     pub temp: i16,
 }
@@ -568,11 +547,11 @@ pub struct UnscaledMeasurements {
 /// Measurements scaled with respective scales and converted
 /// to appropriate units.
 #[derive(Copy, Clone, Debug)]
-pub struct Measurements {
+pub struct Measurements<T> {
     /// Accelerometer measurements (g)
-    pub accel: Vector3<f32>,
+    pub accel: T,
     /// Magnetometer measurements (ga, gausses)
-    pub mag: Vector3<f32>,
+    pub mag: T,
     /// Temperature sensor measurement (C)
     pub temp: f32,
 }
@@ -583,4 +562,12 @@ fn transpose<T, E>(o: Option<Result<T, E>>) -> Result<Option<T>, E> {
         Some(Err(e)) => Err(e),
         None => Ok(None),
     }
+}
+
+fn convert(v: [i16; 3], scale: f32) -> [f32; 3] {
+    [
+        v[0] as f32 * scale,
+        v[1] as f32 * scale,
+        v[2] as f32 * scale,
+    ]
 }
